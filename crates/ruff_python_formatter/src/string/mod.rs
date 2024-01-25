@@ -18,7 +18,6 @@ use crate::expression::parentheses::in_parentheses_only_soft_line_break_or_space
 use crate::other::f_string::FormatFString;
 use crate::other::string_literal::{FormatStringLiteral, StringLiteralKind};
 use crate::prelude::*;
-use crate::preview::is_hex_codes_in_unicode_sequences_enabled;
 use crate::QuoteStyle;
 
 pub(crate) mod docstring;
@@ -312,7 +311,6 @@ pub(crate) struct StringNormalizer {
     quoting: Quoting,
     preferred_quote_style: QuoteStyle,
     parent_docstring_quote_char: Option<QuoteChar>,
-    normalize_hex: bool,
 }
 
 impl StringNormalizer {
@@ -321,7 +319,6 @@ impl StringNormalizer {
             quoting: Quoting::default(),
             preferred_quote_style: QuoteStyle::default(),
             parent_docstring_quote_char: context.docstring(),
-            normalize_hex: is_hex_codes_in_unicode_sequences_enabled(context),
         }
     }
 
@@ -423,7 +420,7 @@ impl StringNormalizer {
 
         let quotes = self.choose_quotes(string, locator);
 
-        let normalized = normalize_string(raw_content, quotes, string.prefix(), self.normalize_hex);
+        let normalized = normalize_string(raw_content, quotes, string.prefix());
 
         NormalizedString {
             prefix: string.prefix(),
@@ -830,7 +827,6 @@ pub(crate) fn normalize_string(
     input: &str,
     quotes: StringQuotes,
     prefix: StringPrefix,
-    normalize_hex: bool,
 ) -> Cow<str> {
     // The normalized string if `input` is not yet normalized.
     // `output` must remain empty if `input` is already normalized.
@@ -881,27 +877,25 @@ pub(crate) fn normalize_string(
                     if next == '\\' {
                         // Skip over escaped backslashes
                         chars.next();
-                    } else if normalize_hex {
-                        if let Some(normalised) = UnicodeEscape::new(next, !prefix.is_byte())
-                            .and_then(|escape| {
-                                escape.normalize(&input[index + c.len_utf8() + next.len_utf8()..])
-                            })
-                        {
-                            // Length of the `\` plus the length of the escape sequence character (`u` | `U` | `x`)
-                            let escape_start_len = '\\'.len_utf8() + next.len_utf8();
-                            let escape_start_offset = index + escape_start_len;
-                            if let Cow::Owned(normalised) = &normalised {
-                                output.push_str(&input[last_index..escape_start_offset]);
-                                output.push_str(normalised);
-                                last_index = escape_start_offset + normalised.len();
-                            };
+                    } else if let Some(normalised) = UnicodeEscape::new(next, !prefix.is_byte())
+                        .and_then(|escape| {
+                            escape.normalize(&input[index + c.len_utf8() + next.len_utf8()..])
+                        })
+                    {
+                        // Length of the `\` plus the length of the escape sequence character (`u` | `U` | `x`)
+                        let escape_start_len = '\\'.len_utf8() + next.len_utf8();
+                        let escape_start_offset = index + escape_start_len;
+                        if let Cow::Owned(normalised) = &normalised {
+                            output.push_str(&input[last_index..escape_start_offset]);
+                            output.push_str(normalised);
+                            last_index = escape_start_offset + normalised.len();
+                        };
 
-                            // Move the `chars` iterator passed the escape sequence.
-                            // Simply reassigning `chars` doesn't work because the indices` would
-                            // then be off.
-                            for _ in 0..next.len_utf8() + normalised.len() {
-                                chars.next();
-                            }
+                        // Move the `chars` iterator passed the escape sequence.
+                        // Simply reassigning `chars` doesn't work because the indices` would
+                        // then be off.
+                        for _ in 0..next.len_utf8() + normalised.len() {
+                            chars.next();
                         }
                     }
 
@@ -1081,7 +1075,6 @@ mod tests {
                 quote_char: QuoteChar::Double,
             },
             StringPrefix::BYTE,
-            true,
         );
 
         assert_eq!(r"\x89\x50\x4e\x47\x0d\x0a\x1a\x0a", &normalized);
