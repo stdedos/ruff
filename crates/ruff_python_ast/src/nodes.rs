@@ -1,14 +1,13 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
+use itertools::Itertools;
 use std::cell::OnceCell;
+
 use std::fmt;
 use std::fmt::Debug;
 use std::ops::Deref;
 use std::slice::{Iter, IterMut};
 
-use itertools::Itertools;
-
-use ruff_python_trivia::{SimpleTokenKind, SimpleTokenizer};
 use ruff_text_size::{Ranged, TextRange, TextSize};
 
 use crate::{int, LiteralExpressionRef};
@@ -555,6 +554,7 @@ impl From<StmtContinue> for Stmt {
 }
 
 /// See also [expr](https://docs.python.org/3/library/ast.html#ast.expr)
+#[allow(deprecated)]
 #[derive(Clone, Debug, PartialEq, is_macro::Is)]
 pub enum Expr {
     #[is(name = "bool_op_expr")]
@@ -623,6 +623,11 @@ pub enum Expr {
     // Jupyter notebook specific
     #[is(name = "ipy_escape_command_expr")]
     IpyEscapeCommand(ExprIpyEscapeCommand),
+
+    #[is(name = "invalid_expr")]
+    #[deprecated]
+    #[allow(deprecated)]
+    Invalid(ExprInvalid),
 }
 
 impl Expr {
@@ -653,6 +658,25 @@ impl Expr {
             Expr::EllipsisLiteral(expr) => Some(LiteralExpressionRef::EllipsisLiteral(expr)),
             _ => None,
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExprInvalid {
+    pub value: String,
+    pub range: TextRange,
+}
+
+impl From<ExprInvalid> for Expr {
+    fn from(payload: ExprInvalid) -> Self {
+        #[allow(deprecated)]
+        Expr::Invalid(payload)
+    }
+}
+
+impl Ranged for ExprInvalid {
+    fn range(&self) -> TextRange {
+        self.range
     }
 }
 
@@ -966,6 +990,18 @@ impl Deref for FStringLiteralElement {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct FStringInvalidElement {
+    pub value: String,
+    pub range: TextRange,
+}
+
+impl Ranged for FStringInvalidElement {
+    fn range(&self) -> TextRange {
+        self.range
+    }
+}
+
 /// Transforms a value prior to formatting it.
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, is_macro::Is)]
 #[repr(i8)]
@@ -1191,9 +1227,14 @@ impl From<FString> for Expr {
 }
 
 #[derive(Clone, Debug, PartialEq, is_macro::Is)]
+#[allow(deprecated)]
 pub enum FStringElement {
     Literal(FStringLiteralElement),
     Expression(FStringExpressionElement),
+
+    #[allow(deprecated)]
+    #[deprecated]
+    Invalid(FStringInvalidElement),
 }
 
 impl Ranged for FStringElement {
@@ -1201,6 +1242,8 @@ impl Ranged for FStringElement {
         match self {
             FStringElement::Literal(node) => node.range(),
             FStringElement::Expression(node) => node.range(),
+            #[allow(deprecated)]
+            FStringElement::Invalid(node) => node.range(),
         }
     }
 }
@@ -1796,42 +1839,12 @@ pub struct ExprTuple {
     pub range: TextRange,
     pub elts: Vec<Expr>,
     pub ctx: ExprContext,
+    pub parenthesized: bool,
 }
 
 impl From<ExprTuple> for Expr {
     fn from(payload: ExprTuple) -> Self {
         Expr::Tuple(payload)
-    }
-}
-
-impl ExprTuple {
-    /// Return `true` if a tuple is parenthesized in the source code.
-    pub fn is_parenthesized(&self, source: &str) -> bool {
-        let Some(elt) = self.elts.first() else {
-            return true;
-        };
-
-        // Count the number of open parentheses between the start of the tuple and the first element.
-        let open_parentheses_count =
-            SimpleTokenizer::new(source, TextRange::new(self.start(), elt.start()))
-                .skip_trivia()
-                .filter(|token| token.kind() == SimpleTokenKind::LParen)
-                .count();
-        if open_parentheses_count == 0 {
-            return false;
-        }
-
-        // Count the number of parentheses between the end of the first element and its trailing comma.
-        let close_parentheses_count =
-            SimpleTokenizer::new(source, TextRange::new(elt.end(), self.end()))
-                .skip_trivia()
-                .take_while(|token| token.kind() != SimpleTokenKind::Comma)
-                .filter(|token| token.kind() == SimpleTokenKind::RParen)
-                .count();
-
-        // If the number of open parentheses is greater than the number of close parentheses, the tuple
-        // is parenthesized.
-        open_parentheses_count > close_parentheses_count
     }
 }
 
@@ -2690,6 +2703,7 @@ pub struct MatchCase {
 
 /// See also [pattern](https://docs.python.org/3/library/ast.html#ast.pattern)
 #[derive(Clone, Debug, PartialEq, is_macro::Is)]
+#[allow(deprecated)]
 pub enum Pattern {
     MatchValue(PatternMatchValue),
     MatchSingleton(PatternMatchSingleton),
@@ -2699,6 +2713,8 @@ pub enum Pattern {
     MatchStar(PatternMatchStar),
     MatchAs(PatternMatchAs),
     MatchOr(PatternMatchOr),
+    #[deprecated]
+    Invalid(PatternMatchInvalid),
 }
 
 /// See also [MatchValue](https://docs.python.org/3/library/ast.html#ast.MatchValue)
@@ -2828,6 +2844,19 @@ pub struct PatternMatchOr {
 impl From<PatternMatchOr> for Pattern {
     fn from(payload: PatternMatchOr) -> Self {
         Pattern::MatchOr(payload)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PatternMatchInvalid {
+    pub value: String,
+    pub range: TextRange,
+}
+
+#[allow(deprecated)]
+impl From<PatternMatchInvalid> for Pattern {
+    fn from(payload: PatternMatchInvalid) -> Self {
+        Pattern::Invalid(payload)
     }
 }
 
@@ -3281,10 +3310,17 @@ impl IpyEscapeKind {
     }
 }
 
+/// An `Identifier` with an empty `id` is invalid.
+///
+/// For example, in the following code `id` will be empty.
+/// ```python
+/// def 1():
+///     ...
+/// ```
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Identifier {
-    id: String,
-    range: TextRange,
+    pub id: String,
+    pub range: TextRange,
 }
 
 impl Identifier {
@@ -3294,6 +3330,10 @@ impl Identifier {
             id: id.into(),
             range,
         }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        !self.id.is_empty()
     }
 }
 
@@ -3722,6 +3762,8 @@ impl Ranged for crate::Expr {
             Self::Tuple(node) => node.range(),
             Self::Slice(node) => node.range(),
             Self::IpyEscapeCommand(node) => node.range(),
+            #[allow(deprecated)]
+            Self::Invalid(node) => node.range(),
         }
     }
 }
@@ -3807,6 +3849,11 @@ impl Ranged for crate::nodes::PatternMatchOr {
         self.range
     }
 }
+impl Ranged for crate::nodes::PatternMatchInvalid {
+    fn range(&self) -> TextRange {
+        self.range
+    }
+}
 impl Ranged for crate::Pattern {
     fn range(&self) -> TextRange {
         match self {
@@ -3818,6 +3865,8 @@ impl Ranged for crate::Pattern {
             Self::MatchStar(node) => node.range(),
             Self::MatchAs(node) => node.range(),
             Self::MatchOr(node) => node.range(),
+            #[allow(deprecated)]
+            Self::Invalid(node) => node.range(),
         }
     }
 }

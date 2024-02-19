@@ -150,7 +150,7 @@ impl SequenceKind<'_> {
             Self::List => ("[", "]"),
             Self::Set => ("{", "}"),
             Self::Tuple(ast_node) => {
-                if ast_node.is_parenthesized(source) {
+                if ast_node.parenthesized {
                     ("(", ")")
                 } else {
                     ("", "")

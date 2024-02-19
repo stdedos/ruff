@@ -729,6 +729,8 @@ impl<'a> Generator<'a> {
                     self.unparse_pattern(pattern);
                 }
             }
+            #[allow(deprecated)]
+            Pattern::Invalid(ast::PatternMatchInvalid { value, .. }) => self.p(value.as_str()),
         }
     }
 
@@ -1190,6 +1192,8 @@ impl<'a> Generator<'a> {
             Expr::IpyEscapeCommand(ast::ExprIpyEscapeCommand { kind, value, .. }) => {
                 self.p(&format!("{kind}{value}"));
             }
+            #[allow(deprecated)]
+            Expr::Invalid(ast::ExprInvalid { value, .. }) => self.p(value.as_str()),
         }
     }
 
@@ -1358,6 +1362,8 @@ impl<'a> Generator<'a> {
                 *conversion,
                 format_spec.as_deref(),
             ),
+            #[allow(deprecated)]
+            ast::FStringElement::Invalid(ast::FStringInvalidElement { value, .. }) => self.p(value),
         }
     }
 

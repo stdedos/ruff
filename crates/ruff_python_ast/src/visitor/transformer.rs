@@ -528,6 +528,7 @@ pub fn walk_expr<V: Transformer + ?Sized>(visitor: &V, expr: &mut Expr) {
             elts,
             ctx,
             range: _,
+            parenthesized: _,
         }) => {
             for expr in elts {
                 visitor.visit_expr(expr);
@@ -550,7 +551,8 @@ pub fn walk_expr<V: Transformer + ?Sized>(visitor: &V, expr: &mut Expr) {
                 visitor.visit_expr(expr);
             }
         }
-        Expr::IpyEscapeCommand(_) => {}
+        #[allow(deprecated)]
+        Expr::IpyEscapeCommand(_) | Expr::Invalid(_) => {}
     }
 }
 
@@ -703,6 +705,8 @@ pub fn walk_pattern<V: Transformer + ?Sized>(visitor: &V, pattern: &mut Pattern)
                 visitor.visit_pattern(pattern);
             }
         }
+        #[allow(deprecated)]
+        Pattern::Invalid(_) => {}
     }
 }
 
