@@ -275,6 +275,7 @@ pub fn code_to_rule(linter: Linter, code: &str) -> Option<(RuleGroup, Rule)> {
         (Pylint, "R1701") => (RuleGroup::Stable, rules::pylint::rules::RepeatedIsinstanceCalls),
         (Pylint, "R1702") => (RuleGroup::Preview, rules::pylint::rules::TooManyNestedBlocks),
         (Pylint, "R1704") => (RuleGroup::Preview, rules::pylint::rules::RedefinedArgumentFromLocal),
+        (Pylint, "R1709") => (RuleGroup::Preview, rules::pylint::rules::SimplifyBooleanExpression),
         (Pylint, "R1711") => (RuleGroup::Stable, rules::pylint::rules::UselessReturn),
         (Pylint, "R1714") => (RuleGroup::Stable, rules::pylint::rules::RepeatedEqualityComparison),
         (Pylint, "R1706") => (RuleGroup::Removed, rules::pylint::rules::AndOrTernary),

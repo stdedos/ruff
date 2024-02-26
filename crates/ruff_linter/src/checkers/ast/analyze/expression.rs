@@ -1511,6 +1511,9 @@ pub(crate) fn expression(expr: &Expr, checker: &mut Checker) {
             if checker.enabled(Rule::ParenthesizeChainedOperators) {
                 ruff::rules::parenthesize_chained_logical_operators(checker, bool_op);
             }
+            if checker.enabled(Rule::SimplifyBooleanExpression) {
+                pylint::rules::simplify_boolean_expression(checker, bool_op);
+            }
         }
         Expr::NamedExpr(..) => {
             if checker.enabled(Rule::AssignmentInAssert) {
